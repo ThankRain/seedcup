@@ -11,9 +11,9 @@ MIN_LENGTH = SIDE_LENGTH / 2 * 1.732  # 中心与边的距离
 CENTER_X = (SIDE_LENGTH + 4) * 0.75 * 31  # MIN_LENGTH * ((15*2)+1) * 1.73 / 2
 WINDOW_WIDTH = CENTER_X * 2 + 40  # 窗口宽度
 WINDOW_HEIGHT = MIN_LENGTH * 8 + 40  # 窗口高度
-TOP_Y = 40  # (0,0) 中心点距离窗口顶部的距离
+TOP_Y = 540  # (0,0) 中心点距离窗口顶部的距离
 pygame.init()
-f = pygame.font.Font('C:/Windows/Fonts/arial.ttf', SIDE_LENGTH)
+f = pygame.font.Font('C:/Windows/Fonts/arial.ttf', 8)
 
 playerID2emoji = {
     0: pygame.image.load("img/cat.png"),
@@ -125,9 +125,15 @@ class Block(object):
                 assert isinstance(self.data, SlaveWeapon)
                 draw_buff(screen, self.data.weaponType, self)
         else:
+            pass
             # 障碍物
-            points = get_draw_points(self.x, self.y)
-            pygame.draw.polygon(screen, (50, 50, 50), points)
+            # points = get_draw_points(self.x, self.y)
+            # pygame.draw.polygon(screen, (50, 50, 50), points)
+            # str = f"({self.x},{self.y})"
+            # txt = f.render(str, True, (255, 0, 255))
+            # rect = txt.get_rect()
+            # rect.center = get_tile_position(self.x, self.y)
+            # screen.blit(txt, rect)
 
     def __str__(self) -> str:
         return f"x:{self.x}, y:{self.y}, color:{self.color}, valid: {self.valid}, obj:{self.obj}, data:{self.data}"
@@ -144,7 +150,7 @@ class GUI(object):
         # 使用pygame之前必须初始化
         self.mapSize = 16
         self._blocks = [
-            [Block(-x, y) for y in range(self.mapSize)]
+            [Block(x, -y) for y in range(self.mapSize)]
             for x in range(self.mapSize)
         ]
 
@@ -172,7 +178,7 @@ class GUI(object):
         self.screen.fill((0, 0, 0))
         for x in range(self.mapSize):
             for y in range(self.mapSize):
-                self._blocks[-x][y].draw(self.screen)
+                self._blocks[x][-y].draw(self.screen)
 
         if pygame.display.get_active():
             pygame.display.flip()  # 更新屏幕内容
@@ -205,7 +211,7 @@ class GUI(object):
             }
 
         """
-        block = self._blocks[-kwargs.pop("x")][kwargs.pop("y")]
+        block = self._blocks[kwargs.pop("x")][-kwargs.pop("y")]
         for key, value in kwargs.items():
             if hasattr(block, key):
                 setattr(block, key, value)

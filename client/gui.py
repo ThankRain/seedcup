@@ -67,11 +67,12 @@ def draw_color(screen, color, block):
         color = (107, 225, 141)
     points = get_draw_points(block.x, block.y)
     pygame.draw.polygon(screen, color, points)
-    str = f"({block.x},{block.y})"
-    txt = f.render(str, True, (255, 0, 255))
-    rect = txt.get_rect()
-    rect.center = get_tile_position(block.x, block.y)
-    screen.blit(txt, rect)
+    # 以下代码绘制每个色块的坐标
+    # str = f"({block.x},{block.y})"
+    # txt = f.render(str, True, (255, 0, 255))
+    # rect = txt.get_rect()
+    # rect.center = get_tile_position(block.x, block.y)
+    # screen.blit(txt, rect)
 
 
 # 每个方块

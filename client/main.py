@@ -8,6 +8,7 @@ from time import sleep
 
 import pygame
 
+from client.ai import AI
 from config import config
 from gui import GUI
 from req import *
@@ -42,7 +43,7 @@ gContext = {
         "'j': master weapon attack\n"
         "'k': slave weapon attack\n"
         "Please complete all actions within one frame! \n"
-        "[example]: a12sdq2\n"
+        "[example]: sdq\n"
     ),
     "steps": ["-", "\\", "|", "/"],
     "gameBeginFlag": False,
@@ -115,7 +116,7 @@ def cliGetInitReq():
     )
 
 
-def cliGetActionReq(characterID: int):
+def cliGetActionReq(characterID: int, ai: AI, state):
     """Get action request from user input.
 
     Args:
@@ -143,8 +144,8 @@ def cliGetActionReq(characterID: int):
     }
 
     actionReqs = []
-
-    actions = input()
+    actions_shaped = ai.get_action(state)  # (9,3,6) = (方向+隐身/解除隐身/无操作) * (Move,主武器攻击,副武器攻击)*排序
+    if actions_shaped[]
 
     for s in get_action(actions):
         actionReq = ActionReq(characterID, *str2action[s])
@@ -262,9 +263,9 @@ def main():
             listen_event()
             if gContext["characterID"] is None:
                 continue
-            # if action := cliGetActionReq(gContext["characterID"]):
-            #     actionPacket = PacketReq(PacketType.ActionReq, action)
-            #     client.send(actionPacket)
+            if action := cliGetActionReq(gContext["characterID"]):
+                actionPacket = PacketReq(PacketType.ActionReq, action)
+                client.send(actionPacket)
 
         # gracefully shutdown
         t.join()

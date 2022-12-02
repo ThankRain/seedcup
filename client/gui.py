@@ -13,11 +13,11 @@ WINDOW_WIDTH = CENTER_X * 2 + 40  # 窗口宽度
 WINDOW_HEIGHT = MIN_LENGTH * 8 + 40  # 窗口高度
 TOP_Y = 540  # (0,0) 中心点距离窗口顶部的距离
 pygame.init()
-f = pygame.font.Font('C:/Windows/Fonts/arial.ttf', 8)
+f = pygame.font.Font('C:/Windows/Fonts/arial.ttf', 20)
 
 playerID2emoji = {
-    0: pygame.image.load("img/cat.png"),
-    1: pygame.image.load("img/bee.png"),
+    0: pygame.image.load("img/1.png"),
+    1: pygame.image.load("img/2.png"),
     2: pygame.image.load("img/duck.png"),
     3: pygame.image.load("img/bird.png"),
     4: pygame.image.load("img/dead.png"),
@@ -33,7 +33,8 @@ weapon2emoji = {
 
 
 def draw_player(screen, player, block):
-    tp1 = pygame.transform.smoothscale(playerID2emoji[player], [20, 20])
+    emoji = playerID2emoji[player]
+    tp1 = pygame.transform.smoothscale(emoji, [20, 20])
     rect = tp1.get_rect()
     rect.center = get_tile_position(block.x, block.y)
     screen.blit(tp1, rect)
@@ -107,7 +108,7 @@ class Block(object):
         self.obj = obj
         self.data = objData
 
-    def draw(self, screen):
+    def draw(self, screen, me):
         if self.valid:
             if self.obj == ObjType.Null:
                 assert isinstance(self.color, ColorType)
@@ -174,14 +175,21 @@ class GUI(object):
         # draw_map(self.screen)
         # 固定代码段，实现点击"X"号退出界面的功能，几乎所有的pygame都会使用该段代码
         # # 循环获取事件，监听事件状态
-
         self.screen.fill((0, 0, 0))
+        self.draw_info()
         for x in range(self.mapSize):
             for y in range(self.mapSize):
-                self._blocks[x][-y].draw(self.screen)
+                self._blocks[x][-y].draw(self.screen, self.playerID)
 
         if pygame.display.get_active():
             pygame.display.flip()  # 更新屏幕内容
+
+    def draw_info(self):
+        str = f"[Player]{self._playerID + 1}  [Score]{self._score}  [Kill]{self._kill}  [Color]{self._color}"
+        txt = f.render(str, True, (255, 255, 255))
+        rect = txt.get_rect()
+        rect.center = (CENTER_X, 50)
+        self.screen.blit(txt, rect)
 
     @property
     def playerID(self):

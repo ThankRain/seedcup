@@ -1,5 +1,5 @@
+import copy
 import logging
-import re
 import socket
 import sys
 from itertools import cycle
@@ -116,42 +116,70 @@ def cliGetInitReq():
     )
 
 
-def cliGetActionReq(characterID: int, ai: AI, state):
-    """Get action request from user input.
-
-    Args:
-        characterID (int): Character's id that do actions.
-    """
-
-    def get_action(s: str):
-        regex = r"[swedxzauijk]"
-        matches = re.finditer(regex, s)
-        for match in matches:
-            yield match.group()
-
-    str2action = {
-        "s": (ActionType.Move, EmptyActionParam()),
-        "w": (ActionType.TurnAround, TurnAroundActionParam(Direction.Above)),
-        "e": (ActionType.TurnAround, TurnAroundActionParam(Direction.TopRight)),
-        "d": (ActionType.TurnAround, TurnAroundActionParam(Direction.BottomRight)),
-        "x": (ActionType.TurnAround, TurnAroundActionParam(Direction.Bottom)),
-        "z": (ActionType.TurnAround, TurnAroundActionParam(Direction.BottomLeft)),
-        "a": (ActionType.TurnAround, TurnAroundActionParam(Direction.TopLeft)),
-        "u": (ActionType.Sneaky, EmptyActionParam()),
-        "i": (ActionType.UnSneaky, EmptyActionParam()),
-        "j": (ActionType.MasterWeaponAttack, EmptyActionParam()),
-        "k": (ActionType.SlaveWeaponAttack, EmptyActionParam()),
+def cliGetActionReq(characterID: int, ai: AI, resp) -> []:
+    direction2action = {
+        0: (ActionType.TurnAround, TurnAroundActionParam(Direction.Above)),
+        1: (ActionType.TurnAround, TurnAroundActionParam(Direction.TopRight)),
+        2: (ActionType.TurnAround, TurnAroundActionParam(Direction.BottomRight)),
+        3: (ActionType.TurnAround, TurnAroundActionParam(Direction.Bottom)),
+        4: (ActionType.TurnAround, TurnAroundActionParam(Direction.BottomLeft)),
+        5: (ActionType.TurnAround, TurnAroundActionParam(Direction.TopLeft)),
+    }
+    sneaky2action = {
+        0: (ActionType.Sneaky, EmptyActionParam()),
+        1: (ActionType.UnSneaky, EmptyActionParam()),
     }
 
-    actionReqs = []
-    actions_shaped = ai.get_action(state)  # (9,3,6) = (方向+隐身/解除隐身/无操作) * (Move,主武器攻击,副武器攻击)*排序
-    if actions_shaped[]
+    def d2action(d):
+        if d < len(direction2action):
+            return ActionReq(characterID, *direction2action[d])
 
-    for s in get_action(actions):
-        actionReq = ActionReq(characterID, *str2action[s])
-        actionReqs.append(actionReq)
+    def s2action(s):
+        if s < len(sneaky2action):
+            return ActionReq(characterID, *sneaky2action[s])
 
+    direction_move, sneaky_move, direction_master, sneaky_master, direction_slave, sneaky_slave, rank = ai.get_action(
+        resp)
+
+    move = [d2action(direction_move), s2action(sneaky_move),
+            ActionReq(characterID, ActionType.Move, EmptyActionParam())]
+    master = [d2action(direction_master), s2action(sneaky_master),
+              ActionReq(characterID, ActionType.MasterWeaponAttack, EmptyActionParam())]
+    slave = [d2action(direction_slave), s2action(sneaky_slave),
+             ActionReq(characterID, ActionType.SlaveWeaponAttack, EmptyActionParam())]
+
+    # (9,3,6) = (方向+隐身/解除隐身/无操作) * (Move,主武器攻击,副武器攻击)*排序
+    # rank 排序
+    # 0 -> move M S
+    # 1 -> move S M
+    # 2 -> M move S
+    # 3 -> M S move
+    # 4 -> S move M
+    # 5 -> S M move
+
+    rank2actions = {
+        0: move + master + slave,
+        1: move + slave + master,
+        2: master + move + slave,
+        3: master + slave + move,
+        4: slave + move + master,
+        5: slave + master + move
+    }
+
+    actionReqs = get_real_arr(rank2actions[rank])
+    # print("[Action]", actionReqs)
     return actionReqs
+
+
+def get_real_arr(arr):
+    """
+    返回删除所有空值后的arr
+    """
+    arr_copy = copy.deepcopy(arr)
+    arr_copy = list(filter(None, arr_copy))
+    while '' in arr_copy:
+        arr_copy.remove('')
+    return arr_copy
 
 
 def refreshUI(ui: GUI, packet: PacketResp):
@@ -186,11 +214,12 @@ def refreshUI(ui: GUI, packet: PacketResp):
     ui.display()
 
 
-def recvAndRefresh(ui: GUI, client: Client):
+def recvAndRefresh(ui: GUI, client: Client, ai: AI):
     """Recv packet and refresh ui."""
     global gContext
     resp = client.recv()
     refreshUI(ui, resp)
+    ai.resp(resp)
 
     if resp.type == PacketType.ActionResp:
         if len(resp.data.characters) and not gContext["gameBeginFlag"]:
@@ -198,13 +227,20 @@ def recvAndRefresh(ui: GUI, client: Client):
             gContext["playerID"] = resp.data.playerID
             gContext["gameBeginFlag"] = True
 
+    # print("[CTX]", gContext)
+
     while resp.type != PacketType.GameOver:
+        if gContext["characterID"] is not None:
+            # print("[resp]",resp)
+            if action := cliGetActionReq(gContext["characterID"], ai=ai, resp=resp):
+                actionPacket = PacketReq(PacketType.ActionReq, action)
+                client.send(actionPacket)
         resp = client.recv()
         refreshUI(ui, resp)
 
     refreshUI(ui, resp)
     print(f"Game Over!")
-
+    ai.save()
     for (idx, score) in enumerate(resp.data.scores):
         if gContext["playerID"] == idx:
             print(f"You've got \33[1m{score} score\33[0m")
@@ -224,10 +260,11 @@ def recvAndRefresh(ui: GUI, client: Client):
     print("Press any key to exit......")
 
 
-def listen_event():
+def listen_event(ai: AI):
     for event in pygame.event.get():
         # 判断用户是否点了关闭按钮
         if event.type == pygame.QUIT:
+            ai.save()
             # 卸载所有模块
             pygame.quit()
             # 终止程序
@@ -236,7 +273,7 @@ def listen_event():
 
 def main():
     ui = GUI()
-
+    ai = AI()
     with Client() as client:
         client.connect()
 
@@ -244,7 +281,7 @@ def main():
         client.send(initPacket)
         print(gContext["prompt"])
         # IO thread to display UI
-        t = Thread(target=recvAndRefresh, args=(ui, client))
+        t = Thread(target=recvAndRefresh, args=(ui, client, ai))
         t.start()
 
         for c in cycle(gContext["steps"]):
@@ -260,12 +297,7 @@ def main():
         print("\nGame Start")
         # IO thread accepts user input and sends requests
         while not gContext["gameOverFlag"]:
-            listen_event()
-            if gContext["characterID"] is None:
-                continue
-            if action := cliGetActionReq(gContext["characterID"]):
-                actionPacket = PacketReq(PacketType.ActionReq, action)
-                client.send(actionPacket)
+            listen_event(ai)
 
         # gracefully shutdown
         t.join()

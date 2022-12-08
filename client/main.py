@@ -1,7 +1,9 @@
 import copy
 import logging
+import os
 import socket
 import sys
+import time
 from itertools import cycle
 from threading import Thread
 from time import sleep
@@ -109,8 +111,8 @@ class Client(object):
 
 def cliGetInitReq():
     """Get init request from user input."""
-    masterWeaponType = 1  # input("Make choices!\nmaster weapon type: [select from {1-2}]: ")
-    slaveWeaponType = 2  # input("slave weapon type: [select from {1-2}]: ")
+    masterWeaponType = 2  # input("Make choices!\nmaster weapon type: [select from {1-2}]: ")
+    slaveWeaponType = 1  # input("slave weapon type: [select from {1-2}]: ")
     return InitReq(
         MasterWeaponType(int(masterWeaponType)), SlaveWeaponType(int(slaveWeaponType))
     )
@@ -191,16 +193,15 @@ def refreshUI(ui: GUI, packet: PacketResp):
         ui.characters = data.characters
         ui.score = data.score
         ui.kill = data.kill
-
         for block in data.map.blocks:
             if len(block.objs):
+                # print(f"[{block.x},{block.y}]{block.objs}")
                 ui.block = {
                     "x": block.x,
                     "y": block.y,
                     "color": block.color,
                     "valid": block.valid,
-                    "obj": block.objs[-1].type,
-                    "data": block.objs[-1].status,
+                    "obj": block.objs,
                 }
             else:
                 ui.block = {
@@ -208,19 +209,17 @@ def refreshUI(ui: GUI, packet: PacketResp):
                     "y": block.y,
                     "color": block.color,
                     "valid": block.valid,
-                    "obj": ObjType.Null,
+                    "obj": [],
                 }
     # subprocess.run(["clear"])
     ui.display()
 
 
-def recvAndRefresh(ui: GUI, client: Client, ai: AI):
+def recvAndRefresh(ui: GUI, client: Client, ai: AI, id):
     """Recv packet and refresh ui."""
     global gContext
     resp = client.recv()
     refreshUI(ui, resp)
-    ai.resp(resp)
-
     if resp.type == PacketType.ActionResp:
         if len(resp.data.characters) and not gContext["gameBeginFlag"]:
             gContext["characterID"] = resp.data.characters[-1].characterID
@@ -228,19 +227,27 @@ def recvAndRefresh(ui: GUI, client: Client, ai: AI):
             gContext["gameBeginFlag"] = True
 
     # print("[CTX]", gContext)
-
+    frame = 0
     while resp.type != PacketType.GameOver:
+        t = time.time()
         if gContext["characterID"] is not None:
             # print("[resp]",resp)
             if action := cliGetActionReq(gContext["characterID"], ai=ai, resp=resp):
                 actionPacket = PacketReq(PacketType.ActionReq, action)
                 client.send(actionPacket)
         resp = client.recv()
-        refreshUI(ui, resp)
+        t1 = time.time()
+        if frame % 5 == 0:
+            refreshUI(ui, resp)
+        frame += 1
+        t2 = time.time()
+        ai.resp(resp)
+        t3 = time.time()
+        print("\n[决策时间]", int((t1 - t) * 1000), "ms [UI绘制]", int((t2 - t1) * 1000), "ms [记忆存储]",
+              int((t3 - t2) * 1000), "ms \n[总时间]", int((t3 - t) * 1000), "ms\n")
 
-    refreshUI(ui, resp)
     print(f"Game Over!")
-    ai.save()
+    ai.save(id)
     for (idx, score) in enumerate(resp.data.scores):
         if gContext["playerID"] == idx:
             print(f"You've got \33[1m{score} score\33[0m")
@@ -260,28 +267,27 @@ def recvAndRefresh(ui: GUI, client: Client, ai: AI):
     print("Press any key to exit......")
 
 
-def listen_event(ai: AI):
+def listen_event(ai: AI, id):
     for event in pygame.event.get():
         # 判断用户是否点了关闭按钮
         if event.type == pygame.QUIT:
-            ai.save()
+            ai.save(id)
             # 卸载所有模块
-            pygame.quit()
+            # pygame.quit()
             # 终止程序
             sys.exit()
 
 
-def main():
+def main(id):
     ui = GUI()
-    ai = AI()
+    ai = AI(id)
     with Client() as client:
         client.connect()
-
         initPacket = PacketReq(PacketType.InitReq, cliGetInitReq())
         client.send(initPacket)
         print(gContext["prompt"])
         # IO thread to display UI
-        t = Thread(target=recvAndRefresh, args=(ui, client, ai))
+        t = Thread(target=recvAndRefresh, args=(ui, client, ai, id))
         t.start()
 
         for c in cycle(gContext["steps"]):
@@ -297,11 +303,11 @@ def main():
         print("\nGame Start")
         # IO thread accepts user input and sends requests
         while not gContext["gameOverFlag"]:
-            listen_event(ai)
+            listen_event(ai, id)
 
         # gracefully shutdown
         t.join()
 
 
 if __name__ == "__main__":
-    main()
+    main(os.getenv('ID'))

@@ -7,5 +7,5 @@
 # 依赖
 （可能还存在其他依赖项）
 ```shell
-pip install pyglet pygame
+pip install numpy pytorch pyglet pygame
 ```

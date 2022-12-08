@@ -1,10 +1,10 @@
 # 导入所需的模块
-from typing import List, Union
+from typing import List
 
 import pygame
 
 from base import ColorType, ObjType
-from resp import Character, Item, SlaveWeapon
+from resp import Character, Item, SlaveWeapon, Obj
 
 SIDE_LENGTH = 10
 MIN_LENGTH = SIDE_LENGTH / 2 * 1.732  # 中心与边的距离
@@ -84,8 +84,7 @@ class Block(object):
             y: int,
             color: ColorType = ColorType.White,
             valid: bool = True,
-            obj: ObjType = ObjType.Null,
-            objData: Union[None, Character, Item, SlaveWeapon] = None,
+            obj: List[Obj] = [],
     ) -> None:
         """The block class used to display.
 
@@ -106,35 +105,37 @@ class Block(object):
         self.color = color
         self.valid = valid
         self.obj = obj
-        self.data = objData
 
     def draw(self, screen, me):
         if self.valid:
-            if self.obj == ObjType.Null:
-                assert isinstance(self.color, ColorType)
-                draw_color(screen, self.color, self)
-            elif self.obj == ObjType.Character:
-                assert isinstance(self.data, Character)
-                if not self.data.isAlive:
-                    draw_player(screen, 4, self)
-                else:
-                    draw_player(screen, self.data.playerID, self)
-            elif self.obj == ObjType.Item:
-                assert isinstance(self.data, Item)
-                draw_buff(screen, self.data.buffType, self)
-            elif self.obj == ObjType.SlaveWeapon:
-                assert isinstance(self.data, SlaveWeapon)
-                draw_buff(screen, self.data.weaponType, self)
-        else:
-            pass
-            # 障碍物
-            # points = get_draw_points(self.x, self.y)
-            # pygame.draw.polygon(screen, (50, 50, 50), points)
-            # str = f"({self.x},{self.y})"
-            # txt = f.render(str, True, (255, 0, 255))
-            # rect = txt.get_rect()
-            # rect.center = get_tile_position(self.x, self.y)
-            # screen.blit(txt, rect)
+            assert isinstance(self.color, ColorType)
+            draw_color(screen, self.color, self)
+        for obj in self.obj:
+            objType = obj.type
+            objData = obj.status
+            if self.valid:
+                if objType == ObjType.Character:
+                    assert isinstance(objData, Character)
+                    if not objData.isAlive:
+                        draw_player(screen, 4, self)
+                    else:
+                        draw_player(screen, objData.playerID, self)
+                elif objType == ObjType.Item:
+                    assert isinstance(objData, Item)
+                    draw_buff(screen, objData.buffType, self)
+                elif objType == ObjType.SlaveWeapon:
+                    assert isinstance(objData, SlaveWeapon)
+                    draw_weapon(screen, objData.weaponType, self)
+            else:
+                pass
+                # 障碍物
+                # points = get_draw_points(self.x, self.y)
+                # pygame.draw.polygon(screen, (50, 50, 50), points)
+                # str = f"({self.x},{self.y})"
+                # txt = f.render(str, True, (255, 0, 255))
+                # rect = txt.get_rect()
+                # rect.center = get_tile_position(self.x, self.y)
+                # screen.blit(txt, rect)
 
     def __str__(self) -> str:
         return f"x:{self.x}, y:{self.y}, color:{self.color}, valid: {self.valid}, obj:{self.obj}, data:{self.data}"
@@ -185,6 +186,7 @@ class GUI(object):
             pygame.display.flip()  # 更新屏幕内容
 
     def draw_info(self):
+
         str = f"[Player]{self._playerID + 1}  [Score]{self._score}  [Kill]{self._kill}  [Color]{self._color}"
         txt = f.render(str, True, (255, 255, 255))
         rect = txt.get_rect()
@@ -283,8 +285,8 @@ def get_tile_position(alpha, beta):
 def get_draw_points(alpha, beta):
     cx, cy = get_tile_position(alpha, beta)
     return (cx - 0.5 * SIDE_LENGTH, cy - MIN_LENGTH), (cx + 0.5 * SIDE_LENGTH, cy - MIN_LENGTH), \
-           (cx + SIDE_LENGTH, cy), (cx + 0.5 * SIDE_LENGTH, cy + MIN_LENGTH + 2), \
-           (cx - 0.5 * SIDE_LENGTH, cy + MIN_LENGTH + 2), (cx - SIDE_LENGTH, cy)
+        (cx + SIDE_LENGTH, cy), (cx + 0.5 * SIDE_LENGTH, cy + MIN_LENGTH + 2), \
+        (cx - 0.5 * SIDE_LENGTH, cy + MIN_LENGTH + 2), (cx - SIDE_LENGTH, cy)
 
 # if __name__ == '__main__':
 #     emoji = f.render(playerID2emoji[0], True,None)
